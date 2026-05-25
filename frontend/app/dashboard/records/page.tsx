@@ -10,10 +10,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/utils';
-import type { MedicalRecord, Patient } from '@/lib/types';
+import type { Doctor, MedicalRecord, Patient } from '@/lib/types';
 
 const emptyForm = {
   patient: '',
+  doctor: '',
   diagnosis: '',
   symptoms: '',
   treatment: '',
@@ -32,6 +33,7 @@ export default function RecordsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<MedicalRecord[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MedicalRecord | null>(null);
@@ -43,6 +45,7 @@ export default function RecordsPage() {
 
   const canCreate = ['admin', 'doctor'].includes(user?.role || '');
   const canDelete = user?.role === 'admin';
+  const needsDoctorSelect = user?.role === 'admin';
 
   const load = async () => {
     setLoading(true);
@@ -51,8 +54,12 @@ export default function RecordsPage() {
       setItems(res.data);
       if (canCreate) {
         try {
-          const p = await api.get('/patients');
+          const [p, d] = await Promise.all([
+            api.get('/patients'),
+            api.get('/doctors'),
+          ]);
           setPatients(p.data);
+          setDoctors(d.data);
         } catch {}
       }
     } finally {
@@ -75,6 +82,7 @@ export default function RecordsPage() {
     setEditing(r);
     setForm({
       patient: (r.patient as any)?._id || '',
+      doctor: (r.doctor as any)?._id || '',
       diagnosis: r.diagnosis || '',
       symptoms: (r.symptoms || []).join(', '),
       treatment: r.treatment || '',
@@ -97,6 +105,22 @@ export default function RecordsPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!editing) {
+      if (!form.patient) {
+        toast.error('Please select a patient');
+        return;
+      }
+      if (needsDoctorSelect && !form.doctor) {
+        toast.error('Please select a doctor');
+        return;
+      }
+      if (!form.diagnosis?.trim()) {
+        toast.error('Please enter a diagnosis');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload: any = {
@@ -112,6 +136,7 @@ export default function RecordsPage() {
           height: form.vitals.height ? Number(form.vitals.height) : undefined,
         },
       };
+      if (!payload.doctor) delete payload.doctor;
       if (editing) {
         await api.put(`/records/${editing._id}`, payload);
         toast.success('Record updated');
@@ -233,15 +258,30 @@ export default function RecordsPage() {
       >
         <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
           {!editing && (
-            <div className="sm:col-span-2">
-              <label className="label">Patient</label>
-              <select required className="input" value={form.patient} onChange={(e) => onChange('patient', e.target.value)}>
-                <option value="">Select a patient</option>
-                {patients.map((p) => (
-                  <option key={p._id} value={p._id}>{p.user?.name}</option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div className={needsDoctorSelect ? '' : 'sm:col-span-2'}>
+                <label className="label">Patient</label>
+                <select required className="input" value={form.patient} onChange={(e) => onChange('patient', e.target.value)}>
+                  <option value="">Select a patient</option>
+                  {patients.map((p) => (
+                    <option key={p._id} value={p._id}>{p.user?.name}</option>
+                  ))}
+                </select>
+              </div>
+              {needsDoctorSelect && (
+                <div>
+                  <label className="label">Doctor</label>
+                  <select required className="input" value={form.doctor} onChange={(e) => onChange('doctor', e.target.value)}>
+                    <option value="">Select a doctor</option>
+                    {doctors.map((d) => (
+                      <option key={d._id} value={d._id}>
+                        Dr. {d.user?.name} — {d.specialization}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
           )}
           <div className="sm:col-span-2">
             <label className="label">Diagnosis</label>

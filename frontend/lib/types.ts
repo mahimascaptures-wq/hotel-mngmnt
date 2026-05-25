@@ -94,12 +94,23 @@ export interface Medication {
   instructions?: string;
 }
 
+export interface PrescriptionAttachment {
+  _id?: string;
+  filename: string;
+  originalName?: string;
+  url: string;
+  mimeType?: string;
+  size?: number;
+  uploadedAt?: string;
+}
+
 export interface Prescription {
   _id: string;
   patient: Patient;
   doctor: Doctor;
   appointment?: Appointment;
   medications: Medication[];
+  attachments?: PrescriptionAttachment[];
   advice?: string;
   issuedDate?: string;
   createdAt?: string;

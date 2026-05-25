@@ -24,11 +24,13 @@ const getStats = asyncHandler(async (req, res) => {
     { $match: { status: 'paid' } },
     { $group: { _id: null, total: { $sum: '$total' } } },
   ]);
+
   const revenue = revenueAgg[0]?.total || 0;
 
   const apptStatusAgg = await Appointment.aggregate([
     { $group: { _id: '$status', count: { $sum: 1 } } },
   ]);
+
   const appointmentsByStatus = apptStatusAgg.reduce(
     (acc, x) => ({ ...acc, [x._id]: x.count }),
     {}

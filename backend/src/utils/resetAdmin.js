@@ -12,10 +12,10 @@ const NAME =
   (ROLE === 'admin'
     ? 'Admin User'
     : ROLE === 'receptionist'
-    ? 'Reception Staff'
-    : ROLE === 'doctor'
-    ? 'Doctor User'
-    : 'New User');
+      ? 'Reception Staff'
+      : ROLE === 'doctor'
+        ? 'Doctor User'
+        : 'New User');
 
 (async () => {
   await connectDB();

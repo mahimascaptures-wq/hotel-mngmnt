@@ -11,12 +11,25 @@ const medicationSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const attachmentSchema = new mongoose.Schema(
+  {
+    filename: { type: String, required: true },
+    originalName: { type: String },
+    url: { type: String, required: true },
+    mimeType: { type: String },
+    size: { type: Number },
+    uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const prescriptionSchema = new mongoose.Schema(
   {
     patient: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
     doctor: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor', required: true },
     appointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
     medications: { type: [medicationSchema], default: [] },
+    attachments: { type: [attachmentSchema], default: [] },
     advice: { type: String },
     issuedDate: { type: Date, default: Date.now },
   },

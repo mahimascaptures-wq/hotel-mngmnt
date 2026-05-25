@@ -1,7 +1,10 @@
+const path = require('path');
+const fs = require('fs');
 const asyncHandler = require('express-async-handler');
 const Prescription = require('../models/Prescription');
 const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
+const { UPLOAD_ROOT } = require('../middleware/upload');
 
 const populateOpts = [
   { path: 'patient', populate: { path: 'user', select: 'name email phone' } },
@@ -63,7 +66,7 @@ const createPrescription = asyncHandler(async (req, res) => {
     appointment,
     medications,
     advice,
-  });
+  }); 
   const populated = await prescription.populate(populateOpts);
   res.status(201).json(populated);
 });
@@ -92,10 +95,79 @@ const deletePrescription = asyncHandler(async (req, res) => {
   res.json({ message: 'Prescription deleted' });
 });
 
+// @desc   Attach uploaded files to a prescription
+// @route  POST /api/prescriptions/:id/attachments
+// @access Doctor or Admin (doctor who owns it, or any admin)
+const addAttachments = asyncHandler(async (req, res) => {
+  const prescription = await Prescription.findById(req.params.id);
+  if (!prescription) {
+    res.status(404);
+    throw new Error('Prescription not found');
+  }
+
+  if (req.user.role === 'doctor') {
+    const doc = await Doctor.findOne({ user: req.user._id });
+    if (!doc || String(doc._id) !== String(prescription.doctor)) {
+      res.status(403);
+      throw new Error('You can only attach files to your own prescriptions');
+    }
+  }
+
+  if (!req.files || req.files.length === 0) {
+    res.status(400);
+    throw new Error('No files uploaded');
+  }
+
+  const newAttachments = req.files.map((f) => ({
+    filename: f.filename,
+    originalName: f.originalname,
+    url: `/uploads/prescriptions/${f.filename}`,
+    mimeType: f.mimetype,
+    size: f.size,
+  }));
+
+  prescription.attachments.push(...newAttachments);
+  await prescription.save();
+  res.status(201).json(prescription.attachments);
+});
+
+// @desc   Remove an attachment from a prescription
+// @route  DELETE /api/prescriptions/:id/attachments/:attachmentId
+const removeAttachment = asyncHandler(async (req, res) => {
+  const prescription = await Prescription.findById(req.params.id);
+  if (!prescription) {
+    res.status(404);
+    throw new Error('Prescription not found');
+  }
+
+  if (req.user.role === 'doctor') {
+    const doc = await Doctor.findOne({ user: req.user._id });
+    if (!doc || String(doc._id) !== String(prescription.doctor)) {
+      res.status(403);
+      throw new Error('Not allowed');
+    }
+  }
+
+  const attachment = prescription.attachments.id(req.params.attachmentId);
+  if (!attachment) {
+    res.status(404);
+    throw new Error('Attachment not found');
+  }
+
+  const filePath = path.join(UPLOAD_ROOT, 'prescriptions', attachment.filename);
+  fs.promises.unlink(filePath).catch(() => {});
+
+  prescription.attachments.pull({ _id: req.params.attachmentId });
+  await prescription.save();
+  res.json({ message: 'Attachment removed' });
+});
+
 module.exports = {
   getPrescriptions,
   getPrescription,
   createPrescription,
   updatePrescription,
   deletePrescription,
+  addAttachments,
+  removeAttachment,
 };
